@@ -124,7 +124,13 @@ void timerInterrupt(void);
 IntervalTimer sIntervalTimer;
 
 #elif  defined(ESP32)
+#  if !defined(TALKIE_OUTPUT_HOOK)
 #include <driver/dac.h>
+#  else
+// Local patch for chips without a DAC (ESP32-S3): every sample (8 bit, unsigned) is handed to
+// talkieOutputSample(), which must be IRAM safe. See src/audio.cpp.
+extern void talkieOutputSample(uint8_t aSample);
+#  endif
 static hw_timer_t *sTalkieSampleRateTimer = nullptr;
 
 #elif defined(ARDUINO_ARCH_SAMD) // Zero
@@ -340,8 +346,13 @@ void Talkie::initializeHardware() {
 #define ESP_ARDUINO_VERSION_VAL(major, minor, patch) ((major << 16) | (minor << 8) | (patch))
 #  endif
 
+#  if defined(TALKIE_OUTPUT_HOOK)
+#define DAC_PIN 0
+#define PWM_OUTPUT_FUNCTION(nextPwm) talkieOutputSample(nextPwm)
+#  else
 #define DAC_PIN 25 // Or 26
 #define PWM_OUTPUT_FUNCTION(nextPwm) dacWrite(sPointerToTalkieForISR->NonInvertedOutputPin, nextPwm)
+#  endif
     // Use Timer1 with 1 microsecond resolution, main APB clock is 80MHZ
 #  define APB_FREQUENCY_DIVIDER 80
     if(sTalkieSampleRateTimer == nullptr) {
